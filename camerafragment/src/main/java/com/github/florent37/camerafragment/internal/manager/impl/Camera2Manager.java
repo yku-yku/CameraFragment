@@ -45,6 +45,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -736,34 +737,47 @@ public final class Camera2Manager extends BaseCameraManager<String, TextureView.
 
     @Override
     public void onImageAvailable(ImageReader imageReader) {
-        final File outputFile = outputPath;
-        backgroundHandler.post(new ImageSaver(imageReader.acquireNextImage(), outputFile, new ImageSaver.ImageSaverCallback() {
-            @Override
-            public void onSuccessFinish(final byte[] bytes) {
-                Log.d(TAG, "onPhotoSuccessFinish: ");
-                if (cameraPhotoListener != null) {
+        try {
+            final File outputFile = outputPath;
+            ByteBuffer buffer = imageReader.acquireNextImage().getPlanes()[0].getBuffer();
+            byte[] bytes = new byte[buffer.remaining()];
+            buffer.get(bytes);
+            backgroundHandler.post(new ImageSaver(bytes, outputFile, new ImageSaver.ImageSaverCallback() {
+                @Override
+                public void onSuccessFinish(final byte[] bytes) {
+                    Log.d(TAG, "onPhotoSuccessFinish: ");
+                    if (cameraPhotoListener != null) {
+                        uiHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                cameraPhotoListener.onPhotoTaken(bytes, outputPath, callback);
+                                callback = null;
+                            }
+                        });
+                    }
+                    unlockFocus();
+                }
+
+                @Override
+                public void onError() {
+                    Log.d(TAG, "onPhotoError: ");
                     uiHandler.post(new Runnable() {
                         @Override
                         public void run() {
-                            cameraPhotoListener.onPhotoTaken(bytes, outputPath, callback);
-                            callback = null;
+                            cameraPhotoListener.onPhotoTakeError();
                         }
                     });
                 }
-                unlockFocus();
-            }
-
-            @Override
-            public void onError() {
-                Log.d(TAG, "onPhotoError: ");
-                uiHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        cameraPhotoListener.onPhotoTakeError();
-                    }
-                });
-            }
-        }));
+            }));
+        } catch (Exception e) {
+            Log.e(TAG, "Can't read the image.", e);
+            uiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    cameraPhotoListener.onPhotoTakeError();
+                }
+            });
+        }
     }
 
     @Override

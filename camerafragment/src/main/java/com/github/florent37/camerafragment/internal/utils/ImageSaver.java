@@ -1,14 +1,12 @@
 package com.github.florent37.camerafragment.internal.utils;
 
 import android.annotation.TargetApi;
-import android.media.Image;
 import android.os.Build;
 import android.util.Log;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 /*
  * Created by memfis on 7/6/16.
@@ -17,7 +15,7 @@ public class ImageSaver implements Runnable {
 
     private final static String TAG = "ImageSaver";
 
-    private final Image image;
+    private byte[] bytes;
     private final File file;
     private ImageSaverCallback imageSaverCallback;
 
@@ -27,8 +25,8 @@ public class ImageSaver implements Runnable {
         void onError();
     }
 
-    public ImageSaver(Image image, File file, ImageSaverCallback imageSaverCallback) {
-        this.image = image;
+    public ImageSaver(byte[] bytes, File file, ImageSaverCallback imageSaverCallback) {
+        this.bytes = bytes;
         this.file = file;
         this.imageSaverCallback = imageSaverCallback;
     }
@@ -38,20 +36,14 @@ public class ImageSaver implements Runnable {
     public void run() {
         FileOutputStream output = null;
         try {
-            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
             output = new FileOutputStream(file);
             output.write(bytes);
             imageSaverCallback.onSuccessFinish(bytes);
-        } catch (IOException ignore) {
-            Log.e(TAG, "Can't save the image file.");
-            imageSaverCallback.onError();
-        } catch (IllegalStateException e) {
-            Log.e(TAG, "Can't read the image file.", e);
+        } catch (Exception e) {
+            Log.e(TAG, "Can't save the image file.", e);
             imageSaverCallback.onError();
         } finally {
-            image.close();
+            bytes = null;
             if (null != output) {
                 try {
                     output.close();
